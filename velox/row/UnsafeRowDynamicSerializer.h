@@ -307,9 +307,7 @@ struct UnsafeRowDynamicSerializer : UnsafeRowSerializer {
     const auto& simple =
         *data->loadedVector()->asUnchecked<SimpleVector<NativeType>>();
     size_t dataSize = size * sizeof(NativeType);
-    size_t nullLength = UnsafeRow::getNullLength(size);
-
-    return UnsafeRow::alignToFieldWidth(dataSize + nullLength);
+    return UnsafeRow::alignToFieldWidth(dataSize + UnsafeRow::kFieldWidthBytes);
   }
 
   /// Extracts and returns size for StringView fields
@@ -345,7 +343,8 @@ struct UnsafeRowDynamicSerializer : UnsafeRowSerializer {
     size_t result = 1 * UnsafeRow::kFieldWidthBytes;
     size_t nullLength = UnsafeRow::getNullLength(size);
 
-    result += nullLength + getSizeVector(elementsType, offset, size, elementsVector);
+    result +=
+        nullLength + getSizeVector(elementsType, offset, size, elementsVector);
     return result;
   }
 
@@ -359,7 +358,8 @@ struct UnsafeRowDynamicSerializer : UnsafeRowSerializer {
   static size_t
   getSizeElementAt(const TypePtr& type, const DataType& data, size_t idx) {
     auto serializedSize = getSize(type, data, idx);
-    return serializedSize;
+    // Every variable size value must be aligned to field width
+    return UnsafeRow::alignToFieldWidth(serializedSize);
   }
 
   /// Gets the size of a range of elements in a vector
@@ -382,14 +382,9 @@ struct UnsafeRowDynamicSerializer : UnsafeRowSerializer {
       }
       return fieldsSize + UnsafeRow::alignToFieldWidth(elementsSize);
     } else {
-      size_t serializedDataSize =
-          VELOX_DYNAMIC_SCALAR_TYPE_DISPATCH(
-              getSizeSimpleVector,
-              type->kind(),
-              size,
-              vector.get());
+      size_t serializedDataSize = VELOX_DYNAMIC_SCALAR_TYPE_DISPATCH(
+          getSizeSimpleVector, type->kind(), size, vector.get());
       return serializedDataSize;
-      // return size * UnsafeRow::kFieldWidthBytes;
     }
   }
 
