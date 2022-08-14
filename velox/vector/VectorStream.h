@@ -114,4 +114,41 @@ class VectorStreamGroup : public StreamArena {
   std::unique_ptr<VectorSerializer> serializer_;
 };
 
+enum class BatchSerdeStatus {
+  Success,
+  AllocationFailed,
+  SerializationFailed,
+  DeserializationFailed,
+  KeysSerializationFailed,
+  SizesDeserializationFailed
+};
+
+class BatchVectorSerde {
+ public:
+  virtual ~BatchVectorSerde() = default;
+
+  /// Serialize a row from the input vector into the buffer
+  /// \param vector input vector
+  /// \param row the row index
+  /// \param result the result buffer which will hold the serialized
+  /// row (and key). This buffer is provided by the function and the next
+  /// calls to the function can free or modify the buffer
+  /// \return error code
+  virtual BatchSerdeStatus serializeRow(
+      const std::shared_ptr<RowVector>& vector,
+      const vector_size_t row,
+      std::string_view& result) = 0;
+
+  /// Block deserializer that converts a block of bytes to a vector given
+  /// its row type
+  /// \param block the block of bytes
+  /// \param type the vector type
+  /// \param result the resulting vector
+  /// \return
+  virtual BatchSerdeStatus deserializeBlock(
+      const std::string_view& block,
+      const std::shared_ptr<const RowType> type,
+      bool includeKeys,
+      std::shared_ptr<RowVector>* result) = 0;
+};
 } // namespace facebook::velox
